@@ -1,0 +1,164 @@
+% OSeigproblem.m
+% 
+% DESCRIPTION
+% Program to compute the Orr-Sommerfeld matrix for three
+% dimensional Poiseuille flows using orthogonal Chebyshev polynomials
+
+% Comparing with results found in Schmid and Henningson (2001)
+% Eigenvalue spectra: Fig 3.1a pg 64 
+% Eigenfunction: Fig. 3.2a,c,e pg 65
+
+% INPUT
+% nc = number of chebyshev modes
+% nf = number of finite difference modes
+% Re = Reynolds number
+% kx = streamwise wave number
+% kz = spanwise wave number
+%
+% OUTPUT
+% d = 3D Orr-Sommerfeld matrix
+
+%% Part 1: Compute the eigenspectra for kx = 1, kz = 0
+% input data
+nc = 200; %number of chebyshev points
+Re = 10000; %Reynolds Number
+kx = 1; %input alpha value
+kz = 0; %input for beta value
+
+%% Chebyshev discretization (Reddy)
+% generate Chebyshev differentiation matrices
+[D0,D1,D2,D4]=Dmat(nc);
+% set up Orr-Sommerfeld matrices A and B
+[A,B]=pois(nc,kx,kz,Re,D0,D1,D2,D4);
+
+% solve the eigenvalue problem 
+[~,echeb] = eigs(A,B,200,'smallestabs');
+
+%% plot
+% plot the eigenspectrum
+figure(1)
+plot(diag(real(echeb)),diag(imag(echeb)),'o','MarkerSize',6)
+ylim([-1 0.1]);
+xlim([0 1]);
+xlabel('Cr', 'FontSize', 18)
+ylabel('Ci','FontSize', 18)
+title('Eigenspectrum of Orr-Sommerfeld Problem', 'FontSize', 14)
+legend('Chebyshev (Reddy)','location','southwest')
+
+%% Part 2: Computing the eigenfunction
+% input data
+nc = 100; 
+Re =  5000; %Reynolds Number
+kx = 1; %input alpha value
+kz = 1; %input for beta value
+
+%% Chebyshev discretization (Reddy)
+% generate Chebyshev differentiation matrices
+[D0,D1,D2,D4]=Dmat(nc);
+% set up Orr-Sommerfeld matrices A and B
+[A,B]=pois(nc,kx,kz,Re,D0,D1,D2,D4);
+
+% solve the eigenvalue problem 
+[xcheb,echeb] = eigs(A,B,200,'smallestabs');
+
+vec=(0:nc)';
+yj = cos(pi*vec/nc);
+%% 
+efa1 = cheb_expansion_soln(yj,xcheb(1:101,9));
+efp1 = cheb_expansion_soln(yj,xcheb(1:101,69));
+efs1 = cheb_expansion_soln(yj,xcheb(1:101,53));
+
+%% plot 
+figure(1)
+plot(diag(real(echeb)),diag(imag(echeb)),'o','MarkerSize',6)
+ylim([-1 0.1]);
+xlim([0 1]);
+xlabel('Cr', 'FontSize', 18)
+ylabel('Ci','FontSize', 18)
+title('Eigenspectrum of Orr-Sommerfeld Problem', 'FontSize', 14)
+legend('Chebyshev (Reddy)','Finite Difference','location','southwest')
+%% 
+figure(2)
+plot(yj,abs(efa1)/max(abs(efa1)),'k-','LineWidth',3)
+title('Eigenfunction on A Branch (wall mode)', 'FontSize', 14)
+xlabel('y')
+ylabel('u')
+legend('Chebyshev (Reddy)','Finite Difference','location','southwest')
+
+figure(3)
+plot(yj,abs(efp1)/max(abs(efp1)),'k-','LineWidth',3)
+title('Eigenfunction on P Branch (center mode)', 'FontSize', 14)
+xlabel('y')
+ylabel('u')
+legend('Chebyshev (Reddy)','Finite Difference','location','southwest')
+
+figure(4)
+plot(yj,abs(efs1)/max(abs(efs1)),'k-','LineWidth',3)
+title('Eigenfunction on P Branch (center mode)', 'FontSize', 14)
+xlabel('y')
+ylabel('u')
+legend('Chebyshev (Reddy)','Finite Difference','location','southwest')
+
+
+%% Defining functions
+
+%computing Orr-Squires operator and mass operator
+function [A,B] = pois2(N,kx,kz,Re,D0,D1,D2,D4,u)
+ak2 = kx^2 + kz^2;
+
+B11= ak2*D0 - D2;
+A11= (D4-2*ak2*D2+(ak2^2)*D0)./(Re);
+A11 = A11+(1i*kx*diag(u)).*B11 + 1i*kx*diag(D2*u);
+
+% set up Squire matrix and cross-term matrix
+A21 = 1i*kz*diag(D1*u);
+A22 = 1i*kx*diag(u) + (B11)./Re;
+B22 = D0;
+% combine all the blocks
+A=[A11 zeros(N,N); A21 A22];
+B=[B11 zeros(N,N); zeros(N,N) B22];
+
+end 
+
+
+function [A,B] = pois3(N,kx,kz,Re,D0,D1,D2,D4,u)
+ak2 = kx^2 + kz^2;
+
+B11=D2-ak2*D0; 
+A11=-(D4-2*ak2*D2+(ak2^2)*D0)/(1i*Re); 
+A11 = A11+(kx*diag(u)).*B11 - kx*diag(D2*u);
+
+% set up Squire matrix and cross-term matrix
+A21 = kz*diag(D1*u);
+A22 = kx*diag(u) - (B11)./Re;
+B22 = D0;
+% combine all the blocks
+A=[A11 zeros(N,N); A21 A22];
+B=[B11 zeros(N,N); zeros(N,N) B22];
+
+end 
+
+
+function [A,B] = pois4(N,kx,kz,Re,D0,D1,D2,D4,u)
+ak2 = kx^2 + kz^2;
+% set up Orr-Sommerfeld matrix
+B11=D2-ak2*D0; 
+A11=-(D4-2*ak2*D2+(ak2^2)*D0)/(1i*Re); 
+A11=A11+kx*(u*ones(1,length(u))).*B11+kx*2*D0; 
+
+er=-200*1i; %arbitrary complex multiple
+B11=[D0(1,:); D1(1,:); B11(3:N-2,:); D1(N,:); D0(N,:)]; %applying the BC on the fist and last two rows
+A11=[er*D0(1,:); er*D1(1,:); A11(3:N-2,:); er*D1(N,:); er*D0(N,:) ]; %complex multiples of the same rows 
+
+% set up Squire matrix and cross-term matrix
+A21=kz.*((D1*u).*ones(1,length(u))).*D0; %cross-term
+A22=kx.*(u.*ones(1,length(u))).*D0-(D2-ak2*D0)/(1i*Re); %Squire equation
+B22=D0; %1
+
+A22=[er*D0(1,:); A22(2:N-1,:); er*D0(N,:)]; %Applying the same boundary condition on Matrix A
+A21=[zeros(1,N); A21(2:N-1,:); zeros(1,N)]; %Zero boundary condition at the wall
+% combine all the blocks
+A=[A11 zeros(N,N); A21 A22];
+B=[B11 zeros(N,N); zeros(N,N) B22];
+
+end 
